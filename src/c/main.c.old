@@ -1,0 +1,152 @@
+
+/*=======================================================
+    ppmToBMP.c
+    Simple wrapper for conversion of PPM to BMP.
+    Base Provided by Antony Gilette
+    Modifications by Evan William Gretok
+  =======================================================*/
+
+
+// Inclusions
+#include <inttypes.h>
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "ppmTools.h"
+#include "qdbmp.h"
+
+
+// Definitions
+#define NUM_ARGS   4
+#define SHOW_TIMES 1
+
+
+// Main
+int main( int argc, char **argv ) {
+
+  // Image
+        uint8_t *image           = NULL;               // Image Pointer for Input - 8-bit color, three colors per pixel.
+        BMP     *bmpImage        = NULL;               // BMP Pointer for QDBMP Image Library
+        size_t   width           = 0;                  // Image Width
+        size_t   height          = 0;                  // Image Height
+        size_t   i               = 0;                  // Iterator Used for Position in Input Image
+        uint16_t x               = 0;                  // Image Width Traverser X
+        uint16_t y               = 0;                  // Image Width Traverser Y
+        char    *filename        = NULL;               // Input Filename
+        char    *output          = NULL;               // Output Filename
+        uint8_t  display         = 0;                  // Argument to Display Debug Text
+  // Timing Measures
+        double   jobStart        = omp_get_wtime( );   // Job Clock Start Time       - full program including parallelization overhead.
+        double   imageInStart    = 0.0;                // Image Input Start Time     - image load and prep time.
+        double   imageInEnd      = 0.0;                // Image Input End Time
+        double   conversionStart = 0.0;                // Conversion Start Time      - processing clock.
+        double   conversionEnd   = 0.0;                // Conversion End Time
+        double   imageOutStart   = 0.0;                // Image Output Start Time    - image write out and closing.
+        double   imageOutEnd     = 0.0;                // Image Output End Time
+        double   jobEnd          = 0.0;                // Job Clock End Time         - final measure for total job time.
+  // Timing Results
+        double   imageInTime     = 0.0;                // Program Time in Image Read Phase
+        double   conversionTime  = 0.0;                // Program Time in Conversion Operation Phase
+        double   imageOutTime    = 0.0;                // Program Time in Image Write Phase
+        double   addOverhead     = 0.0;                // Additional Later Overhead Program Time
+        double   jobTime         = 0.0;                // Total Program Time
+
+  // Parsing Input Arguments - Handling Errors
+  if( ( argc >= ( NUM_ARGS ) ) && ( argc <= ( NUM_ARGS + 2 ) ) ) {
+    // Parsing Normal Arguments
+    filename = argv[1];
+    output   = argv[2];
+    display  = atoi( argv[3] );
+  // If Arguement Number Does Not Fall Into Acceptable Range, Print Usage
+  } else {
+    fprintf( stderr, "\nWrong number of arguments (%d required)\n", NUM_ARGS );
+    printf( "Description: converts PPM to BMP images\n\n" );
+    printf( "Usage: %s <input> <output> <display>\n", argv[0] );
+    printf( "  Input            - input .ppm file.\n" );
+    printf( "  Output           - desired output filename.bmp.\n" );
+    printf( "  Display          - 1 displays debug text, 0 just displays time values for raw data tables.\n\n" );
+    return 0;
+  }
+
+  // Intro Message
+  if( display ) {
+    printf( "\n   = = =  ppmToBMP  = = =   \n" );
+  }
+
+  // Set Job Start Timer
+  jobStart         = omp_get_wtime( );
+
+  // Image Initialization
+  if( display ) {
+    printf( "\nInitializing Image...\n" );
+  }
+  imageInStart     = omp_get_wtime( );
+  image            = readPPM( filename, &width, &height );
+  imageInEnd       = omp_get_wtime( );
+
+  // Preparing BMP Image
+  bmpImage = BMP_Create( width, height, 24 );
+  BMP_CHECK_ERROR( stderr, -3 );
+
+  // Conversion Operation
+  if( display ) {
+    printf( "Performing Conversion Operation...\n" );
+  }
+  conversionStart = omp_get_wtime( );
+  for( y = 0; y < height; y++ ) {
+    for( x = 0; x < width; x++ ) {
+      i = ( y * width + x ) * 3;
+      BMP_SetPixelRGB( bmpImage, x, y, (char)( image[i] ), (char)( image[i+1] ), (char)( image[i+2] ) );
+    }
+  }
+  conversionEnd   = omp_get_wtime( );
+
+
+  // Finalize - Parallelization of Image Assignment Here
+  if( display ) {
+    printf( "Outputting Image...\n" );
+  }
+  imageOutStart    = omp_get_wtime( );
+  BMP_WriteFile( bmpImage, output );
+  BMP_CHECK_ERROR( stderr, -5 );
+  imageOutEnd      = omp_get_wtime( );
+
+  // Final Tasks
+  free( image );
+  BMP_Free( bmpImage );
+  if( display ) {
+    printf( "Operation Complete!\n\n" );
+  }
+
+  // Final Timing Component
+  jobEnd         = omp_get_wtime( );                                      // End Full Program Clock
+  imageInTime    = imageInEnd    - imageInStart;                          // Calculate Image Input and Preparation Time
+  conversionTime = conversionEnd - conversionStart;                       // Calculate Color Search Processing Time
+  imageOutTime   = imageOutEnd   - imageOutStart;                         // Calculate Image Output Time
+  jobTime        = jobEnd        - jobStart;                              // Calculate Overall Time
+  addOverhead    = jobTime - imageInTime - conversionTime - imageOutTime;  // Calculate Additional Overhead Time
+
+  // Handle Displaying All Timing Data
+  if( display ) {  // Messages only when display is 1.
+    printf( "=== Timing Data ===\n  Image In:\t\t" );
+    printf( "%0.9lf\n", imageInTime );
+    printf( "  Conversion:\t\t" );
+  }
+  printf( "%0.9lf ", conversionTime );
+  if( display ) {
+    printf( "\n  Image Out:\t\t" );
+    printf( "%0.9lf\n", imageOutTime );
+    printf( "  Overhead:\t\t" );
+    printf( "%0.9lf\n", addOverhead );
+    printf( "  Total Job Time:\t" );
+    printf( "%0.9lf\n\n", jobTime );
+  }
+
+  return 0;
+
+}
+
+
+
+// END ppmToPGM.c  - EWG SDG
