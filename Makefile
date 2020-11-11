@@ -14,7 +14,7 @@ CPP_OBJ_DIR := obj/c++
 OBJ_DIR     := obj
 
 # Files for Executable
-C_NAMES     := main.c ppmToBMP.c ppmTools.c
+C_NAMES     := main.c ppmToBMP.c ppmTools.c qdbmp.c
 
 # Flags and Libraries
 CFLAGS      := -std=c99 -Wall -Wextra -fopenmp -O3 -static
